@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Env
+.env
+.envrc
+*.env
+
+# macOS
+.DS_Store
+*.log
+*.pid
+
+# Flask
+instance/
+
+# IDE
+.vscode/
+.idea/

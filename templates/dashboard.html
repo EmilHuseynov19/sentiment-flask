@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentiment Analysis &mdash; Trendyol Products</title>
+    <style>
+        :root {
+            --bg:#fff;--surface:#f5f5f7;--border:#e5e5ea;--divider:#ededf0;
+            --text:#1d1d1f;--text-sub:#6e6e73;--text-muted:#aeaeb2;
+            --positive:#86868b;--neutral:#aeaeb2;--negative:#d2d2d7;
+            --radius-sm:8px;--radius:14px;--radius-lg:20px;
+            --shadow:0 1px 3px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.03);
+            --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',sans-serif;
+        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{
+            font-family:var(--font);background:#f5f5f7;min-height:100vh;
+            display:flex;align-items:flex-start;justify-content:center;
+            padding:48px 24px 80px;color:var(--text);
+            -webkit-font-smoothing:antialiased;letter-spacing:-.01em;
+        }
+        body.noscroll{overflow:hidden}
+        .page{max-width:1040px;width:100%;display:flex;flex-direction:column;gap:28px}
+
+        /* ── Header / Search ── */
+        .hd{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+        .search-wrap{
+            flex:1;position:relative;min-width:200px;
+            display:flex;align-items:center;
+        }
+        .search-wrap .s-icon{
+            position:absolute;left:14px;pointer-events:none;
+            width:16px;height:16px;color:var(--text-muted);
+        }
+        .search-wrap input{
+            width:100%;padding:12px 14px 12px 40px;
+            font-size:14px;font-family:var(--font);
+            border:1px solid var(--border);border-radius:var(--radius-lg);
+            background:var(--bg);color:var(--text);
+            outline:none;transition:border .2s;
+            -webkit-appearance:none;
+        }
+        .search-wrap input:focus{border-color:var(--text)}
+        .search-wrap input::placeholder{color:var(--text-muted)}
+
+        .hd .meta{
+            font-size:12px;color:var(--text-sub);
+            display:flex;align-items:center;gap:8px;white-space:nowrap;
+        }
+        .hd .dot{width:6px;height:6px;border-radius:50%;background:var(--positive);display:inline-block;flex-shrink:0}
+        .hd .dot.stale{background:var(--neutral)}
+
+        /* ── Results count ── */
+        .results-meta{font-size:13px;color:var(--text-sub);display:flex;justify-content:space-between;align-items:center}
+        .results-meta .clear-btn{
+            border:none;background:none;font-family:var(--font);font-size:12px;
+            color:var(--text-muted);cursor:pointer;padding:4px 8px;border-radius:6px;
+            transition:color .2s;
+        }
+        .results-meta .shuffle-btn{
+            border:none;background:none;font-family:var(--font);font-size:12px;
+            color:var(--text-muted);cursor:pointer;padding:4px 8px;border-radius:6px;
+            transition:color .2s;display:inline-flex;align-items:center;gap:4px;
+        }
+        .results-meta .shuffle-btn:hover{color:var(--text)}
+        .results-meta .shuffle-btn svg{width:14px;height:14px;transition:transform .4s ease}
+        .results-meta .shuffle-btn.spin svg{transform:rotate(360deg)}
+
+        /* ── Grid ── */
+        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+        .grid-card{
+            background:var(--bg);border-radius:var(--radius);border:1px solid var(--border);
+            padding:16px;cursor:pointer;transition:all .2s ease;
+            display:flex;flex-direction:column;gap:8px;
+        }
+        .grid-card:hover{border-color:var(--text);box-shadow:0 2px 12px rgba(0,0,0,.06)}
+        .grid-card:active{transform:scale(.97)}
+        .grid-card.hidden{display:none}
+        .grid-card .thumb{
+            width:100%;aspect-ratio:1;border-radius:var(--radius-sm);
+            background:var(--surface);overflow:hidden;display:flex;align-items:center;justify-content:center;
+        }
+        .grid-card .thumb img{width:100%;height:100%;object-fit:contain}
+        .grid-card .thumb svg{opacity:.25;width:40px;height:40px}
+        .grid-card .gname{
+            font-size:12px;font-weight:500;color:var(--text);
+            line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+        }
+        .grid-card .gbrand{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)}
+        .g-bars{display:flex;gap:3px;height:4px;margin-top:auto}
+        .g-bars .seg{height:100%;border-radius:99px}
+        .g-bars .seg.p{background:var(--text)}
+        .g-bars .seg.n{background:var(--neutral)}
+        .g-bars .seg.ng{background:var(--border)}
+        .g-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);font-variant-numeric:tabular-nums}
+
+        .skel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+        .skel-card{background:var(--bg);border-radius:var(--radius);border:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:10px}
+        .skel-card .skel-thumb{width:100%;aspect-ratio:1;border-radius:var(--radius-sm);background:var(--surface)}
+        .skel-card .skel-line{height:12px;border-radius:99px;background:var(--surface)}
+        .skel-card .skel-line.s2{width:60%}
+        .skel+pulse{animation:pulse 1.5s ease-in-out infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+        /* ── Modal ── */
+        .modal-overlay{
+            display:none;position:fixed;inset:0;z-index:1000;
+            background:rgba(0,0,0,0.3);
+            backdrop-filter:blur(8px);
+            -webkit-backdrop-filter:blur(8px);
+            align-items:center;justify-content:center;
+            padding:24px;
+            animation:mo .25s ease;
+        }
+        .modal-overlay.open{display:flex}
+        @keyframes mo{0%{opacity:0}100%{opacity:1}}
+
+        .modal-window{
+            background:var(--bg);border-radius:var(--radius-lg);
+            max-width:780px;width:100%;max-height:85vh;
+            overflow-y:auto;padding:40px 44px;
+            box-shadow:0 20px 60px rgba(0,0,0,.15),0 8px 24px rgba(0,0,0,.06);
+            position:relative;
+            animation:mw .35s cubic-bezier(.22,1,.36,1);
+        }
+        @keyframes mw{
+            0%{opacity:0;transform:translateY(20px) scale(.96)}
+            100%{opacity:1;transform:translateY(0) scale(1)}
+        }
+        .modal-window::-webkit-scrollbar{width:6px}
+        .modal-window::-webkit-scrollbar-track{background:transparent}
+        .modal-window::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+
+        .modal-close{
+            position:sticky;top:0;float:right;
+            width:32px;height:32px;border-radius:50%;
+            border:1px solid var(--border);background:var(--bg);
+            cursor:pointer;display:flex;align-items:center;justify-content:center;
+            transition:all .2s;z-index:10;
+            margin-bottom:-32px;
+        }
+        .modal-close:hover{background:var(--surface);border-color:var(--text)}
+        .modal-close svg{width:14px;height:14px;color:var(--text-sub)}
+        .modal-close:hover svg{color:var(--text)}
+
+        /* ── Modal content (same styles, prefixed) ── */
+        .m-ph{display:flex;align-items:center;gap:24px;margin-bottom:24px}
+        .m-pvi{width:90px;height:90px;flex-shrink:0;background:var(--surface);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;overflow:hidden}
+        .m-pvi img{width:100%;height:100%;object-fit:contain}
+        .m-pvi .fb{opacity:.3;width:40px;height:40px}
+        .m-pd{min-width:0}
+        .m-pd .ov{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-sub)}
+        .m-pd h2{font-size:20px;font-weight:600;letter-spacing:-.02em;color:var(--text);line-height:1.2;margin:4px 0}
+        .m-pd .pm{display:flex;gap:12px;align-items:center;font-size:13px;color:var(--text-sub);flex-wrap:wrap}
+        .m-pd .pm .sp{width:1px;height:14px;background:var(--border)}
+        .m-stars{display:inline-flex;gap:2px;vertical-align:middle}
+        .m-stars svg{width:12px;height:12px}
+        .m-stars .fl{color:var(--text)}
+        .m-stars .em{color:var(--border)}
+
+        .m-ch{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+        .m-cp{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-sub)}
+        .m-cp strong{font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+        .m-cp .sd{width:3px;height:3px;border-radius:50%;background:var(--border);margin:0 5px}
+        .m-sl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:12px}
+        .m-sdv{border:none;height:1px;background:var(--divider);margin:20px 0}
+
+        .m-bars{display:flex;flex-direction:column;gap:10px}
+        .m-br{display:flex;align-items:center;gap:12px}
+        .m-br .lb{width:85px;font-size:13px;font-weight:500;color:var(--text);flex-shrink:0}
+        .m-br .tk{flex:1;height:6px;background:var(--surface);border-radius:99px;overflow:hidden}
+        .m-br .bar{height:100%;border-radius:99px;transition:width 1s cubic-bezier(.25,.1,.25,1);width:0}
+        .m-br .p{background:var(--text)}.m-br .nt{background:var(--text-muted)}.m-br .ng{background:var(--border)}
+        .m-br .pct{width:40px;text-align:right;font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;font-variant-numeric:tabular-nums}
+
+        .m-g2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+        .m-il{list-style:none;display:flex;flex-direction:column;gap:2px}
+        .m-il li{display:flex;align-items:baseline;gap:6px;padding:8px 0;border-bottom:1px solid var(--divider);font-size:13px;color:var(--text)}
+        .m-il li:last-child{border-bottom:none}
+        .m-il .rk{font-size:10px;font-weight:600;color:var(--text-muted);min-width:20px;font-variant-numeric:tabular-nums}
+        .m-il .em{font-size:13px;color:var(--text-muted);padding:8px 0;border-bottom:1px solid var(--divider)}
+
+        .m-st{width:100%;border-collapse:collapse}
+        .m-st th{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);text-align:left;padding-bottom:8px;border-bottom:1px solid var(--divider)}
+        .m-st td{padding:7px 0;font-size:13px;color:var(--text);border-bottom:1px solid var(--divider)}
+        .m-st tr:last-child td{border-bottom:none}
+        .m-st .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+        .m-st .v.up{color:var(--text-sub)}.m-st .v.dn{color:var(--text-muted)}.m-st .v.fl{color:var(--text-sub)}
+        .m-au::before{content:'\2191\00a0';font-size:10px}
+        .m-ad::before{content:'\2193\00a0';font-size:10px}
+        .m-af::before{content:'\2192\00a0';font-size:10px}
+
+        .m-kwl{display:flex;flex-wrap:wrap;gap:6px}
+        .m-kwt{font-size:11px;font-weight:500;padding:4px 10px;border-radius:99px;border:1px solid var(--border);color:var(--text);background:var(--bg);white-space:nowrap}
+        .m-kwt .sd{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;vertical-align:middle;position:relative;top:-1px}
+        .m-kwt .sd.p{background:var(--text)}.m-kwt .sd.n{background:var(--text-muted)}.m-kwt .sd.ng{background:var(--border)}
+
+        .m-sn{font-size:14px;line-height:1.6;color:var(--text);padding:18px 0;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider)}
+        .m-act{padding-top:4px}
+        .m-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;border:1px solid var(--text);border-radius:99px;font-size:13px;font-weight:500;color:var(--text);background:transparent;cursor:pointer;transition:all .2s ease;font-family:var(--font);letter-spacing:-.01em}
+        .m-btn:hover{background:var(--text);color:#fff}
+        .m-btn:active{transform:scale(.98)}
+        .m-btn svg{width:15px;height:15px;transition:transform .4s ease}
+        .m-btn.az svg{transform:rotate(360deg)}
+
+        .m-pn{display:none;animation:fi .35s ease;margin-top:20px}
+        .m-pn.open{display:block}
+        @keyframes fi{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+        .m-pn h4{font-size:15px;font-weight:600;letter-spacing:-.01em;margin-bottom:16px;color:var(--text)}
+
+        .m-ri{padding:14px 0;border-bottom:1px solid var(--divider);display:flex;gap:12px;align-items:flex-start}
+        .m-ri:last-child{border-bottom:none}
+        .m-ra{width:30px;height:30px;border-radius:50%;background:var(--surface);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-muted)}
+        .m-rb{flex:1;min-width:0}
+        .m-rb .rt{font-size:12px;color:var(--text-sub);line-height:1.5}
+        .m-rp{flex-shrink:0;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--text-muted)}
+        .m-rp.p{border-color:var(--text);color:var(--text)}
+        .m-rp.nt{border-color:var(--border);color:var(--text-muted)}
+        .m-rp.ng{border-color:var(--border);color:var(--text-muted)}
+
+        @media(max-width:640px){
+            body{padding:24px 12px 48px}
+            .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+            .modal-window{padding:28px 20px;max-height:90vh}
+            .m-ph{flex-direction:column;align-items:flex-start;gap:14px}
+            .m-pvi{width:72px;height:72px}
+            .m-pd h2{font-size:17px}
+            .m-g2{grid-template-columns:1fr;gap:18px}
+            .m-br .lb{width:70px;font-size:12px}
+            .m-btn{width:100%;justify-content:center}
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+
+    <!-- ═══ Search Header ═══ -->
+    <div class="hd">
+        <div class="search-wrap">
+            <svg class="s-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.5"/><line x1="11" y1="11" x2="14" y2="14"/></svg>
+            <input type="text" id="searchInput" placeholder="Search products by name or brand..." autocomplete="off" />
+        </div>
+        <div class="meta">
+            <span class="dot" id="healthDot"></span>
+            <span id="healthText">loading</span>
+        </div>
+    </div>
+
+    <!-- ═══ Results meta ═══ -->
+    <div class="results-meta">
+        <span id="resultCount"></span>
+        <span style="display:flex;align-items:center;gap:6px">
+            <button class="clear-btn" id="clearSearch" style="display:none">Clear</button>
+            <button class="shuffle-btn" id="shuffleBtn" title="Shuffle products">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l2.5 2.5-2.5 2.5"/><path d="M1.5 11h3.5c3 0 4.5-4 7-4h3.5"/><path d="M12 8.5l2.5 2.5-2.5 2.5"/><path d="M1.5 5h3.5c1.2 0 2.3.6 3.1 1.5"/></svg>
+                Shuffle
+            </button>
+        </span>
+    </div>
+
+    <!-- ═══ Product Grid ═══ -->
+    <div id="gridContainer"></div>
+
+    <!-- ═══ Modal ═══ -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal-window">
+            <button class="modal-close" id="modalClose">
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg>
+            </button>
+
+            <div class="m-ph">
+                <div class="m-pvi" id="mPimg"><div class="fb"><svg viewBox="0 0 44 44" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="36" height="28" rx="4"/><path d="M12 10V7a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v3"/><path d="M19 26l3 3 3-6" stroke-width="2"/></svg></div></div>
+                <div class="m-pd">
+                    <span class="ov" id="mPbrand"></span>
+                    <h2 id="mPname"></h2>
+                    <div class="pm">
+                        <span class="m-stars" id="mPrating"></span>
+                        <span class="sp"></span>
+                        <span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;vertical-align:middle;margin-right:3px"><path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6A1.5 1.5 0 0 1 13 11.5H5.5L2 14V4A1.5 1.5 0 0 1 3.5 2.5z"/></svg><span id="mPrevText"> reviews</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="m-ch">
+                <div class="m-cp">Total <strong id="mChTot"></strong><span class="sd"></span></div>
+                <div class="m-cp"><span class="cl" data-en="Positive" data-az="Müsbət">Positive</span> <strong id="mChPos"></strong><span class="sd"></span></div>
+                <div class="m-cp"><span class="cl" data-en="Neutral" data-az="Neytral">Neutral</span> <strong id="mChNeu"></strong><span class="sd"></span></div>
+                <div class="m-cp"><span class="cl" data-en="Negative" data-az="Mənfi">Negative</span> <strong id="mChNeg"></strong></div>
+            </div>
+
+            <div class="m-sl"><span data-en="Sentiment Overview" data-az="Sentiment Baxış">Sentiment Overview</span></div>
+            <div class="m-bars">
+                <div class="m-br"><span class="lb">Positive</span><div class="tk"><div class="bar p" id="mBPos"></div></div><span class="pct" id="mPPos">0%</span></div>
+                <div class="m-br"><span class="lb">Neutral</span><div class="tk"><div class="bar nt" id="mBNeu"></div></div><span class="pct" id="mPNeu">0%</span></div>
+                <div class="m-br"><span class="lb">Negative</span><div class="tk"><div class="bar ng" id="mBNeg"></div></div><span class="pct" id="mPNeg">0%</span></div>
+            </div>
+
+            <hr class="m-sdv" />
+
+            <div class="m-g2">
+                <div>
+                    <div class="m-sl"><span data-en="Top Issues" data-az="Əsas Problemlər">Top Issues</span></div>
+                    <ul class="m-il" id="mIssList"><li class="em">No significant issues</li></ul>
+                </div>
+                <div>
+                    <div class="m-sl">Sentiment Trend</div>
+                    <table class="m-st">
+                        <thead><tr><th>Sentiment</th><th>Reviews</th></tr></thead>
+                        <tbody>
+                            <tr><td>Positive</td><td class="v up" id="mTrendPos"></td></tr>
+                            <tr><td>Neutral</td><td class="v fl" id="mTrendNeu"></td></tr>
+                            <tr><td>Negative</td><td class="v dn" id="mTrendNeg"></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <hr class="m-sdv" />
+            <div class="m-sl">Top Keywords</div>
+            <div class="m-kwl" id="mKwList"></div>
+
+            <hr class="m-sdv" />
+            <div class="m-sl">AI Summary</div>
+            <p class="m-sn" id="mSumTxt"></p>
+
+            <div class="m-act">
+                <button class="m-btn" id="mTogBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg>
+                    <span id="mTogLbl">Show Full Analysis</span>
+                </button>
+            </div>
+
+            <div class="m-pn" id="mPanel">
+                <h4><span data-en="Full Analysis" data-az="Tam Analiz">Full Analysis</span></h4>
+                <div class="m-g2">
+                    <div>
+                        <div class="m-sl">Review Volume</div>
+                        <table class="m-st">
+                            <tbody>
+                                <tr><td><span data-en="Total reviews" data-az="Ümumi rəylər">Total reviews</span></td><td class="v" id="mDTot"></td></tr>
+                                <tr><td><span data-en="Positive" data-az="Müsbət">Positive</span></td><td class="v" id="mDPos"></td></tr>
+                                <tr><td><span data-en="Neutral" data-az="Neytral">Neutral</span></td><td class="v" id="mDNeu"></td></tr>
+                                <tr><td><span data-en="Negative" data-az="Mənfi">Negative</span></td><td class="v" id="mDNeg"></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="m-sl">Product Stats</div>
+                        <table class="m-st">
+                            <tbody>
+                                <tr><td><span data-en="Rating" data-az="Reytinq">Rating</span></td><td class="v" id="mDRat"> / 5</td></tr>
+                                <tr><td><span data-en="Review count" data-az="Rəy sayı">Review count</span></td><td class="v" id="mDRev"></td></tr>
+                                <tr><td><span data-en="Sentiment score" data-az="Sentiment balı">Sentiment score</span></td><td class="v" id="mDScr"></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div style="margin-top:20px">
+                    <div class="m-sl"><span data-en="Sample Reviews" data-az="Rəy Nümunələri">Sample Reviews</span></div>
+                    <div id="mSamples"><div class="m-ri"><div class="m-rb"><div class="rt" style="color:var(--text-muted)">Select a product.</div></div></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+var BADGE={en:{p:'Positive',nt:'Neutral',ng:'Negative'},az:{p:'Müsbət',nt:'Neytral',ng:'Mənfi'}};
+var INITIALS=['AM','RK','LH','SY','MT','AB','CK','DN','ER','FP'];
+var allProducts=[],cur=null,lang='en';
+
+function $(id){return document.getElementById(id)}
+
+function modalOpen(){document.body.classList.add('noscroll');$('modal').classList.add('open')}
+function modalClose(){document.body.classList.remove('noscroll');$('modal').classList.remove('open')}
+
+$('modal').addEventListener('click',function(e){
+    if(e.target===this||e.target.classList.contains('modal-close'))modalClose();
+});
+$('modalClose').addEventListener('click',modalClose);
+document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&$('modal').classList.contains('open'))modalClose();
+});
+
+// ── Search ──
+function shuffleArray(arr){
+    for(var i=arr.length-1;i>0;i--){
+        var j=Math.floor(Math.random()*(i+1));
+        var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp;
+    }
+    return arr;
+}
+
+function renderGridCards(){
+    var html='<div class="grid">';
+    for(var i=0;i<allProducts.length;i++){
+        var p=allProducts[i];
+        var s=p.sentiment||{positive:50,neutral:30,negative:20};
+        var imgHtml;
+        if(p.imageUrl){
+            imgHtml='<img src="'+p.imageUrl+'" alt="" loading="lazy">';
+        }else{
+            imgHtml='<svg viewBox="0 0 44 44" fill="none" stroke="#aeaeb2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="36" height="28" rx="4"/><path d="M12 10V7a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v3"/><path d="M19 26l3 3 3-6" stroke-width="2"/></svg>';
+        }
+        var pct=s.positive+s.neutral+s.negative;
+        var pw=pct>0?Math.round(s.positive/pct*100):0;
+        var nw=pct>0?Math.round(s.neutral/pct*100):0;
+        var ngw=pct>0?100-pw-nw:0;
+        var searchStr=(p.brand+' '+p.name).toLowerCase();
+
+        html+='<div class="grid-card" data-idx="'+i+'" data-search="'+escAttr(searchStr)+'">';
+        html+='<div class="thumb">'+imgHtml+'</div>';
+        html+='<span class="gbrand">'+esc(p.brand||'')+'</span>';
+        html+='<span class="gname">'+esc(p.name||'')+'</span>';
+        html+='<div class="g-bars"><div class="seg p" style="width:'+pw+'%"></div><div class="seg n" style="width:'+nw+'%"></div><div class="seg ng" style="width:'+ngw+'%"></div></div>';
+        html+='<div class="g-meta"><span>'+s.positive+'% pos</span><span>'+(p.totalReviews||'?')+' rev</span></div>';
+        html+='</div>';
+    }
+    html+='</div>';
+    $('gridContainer').innerHTML=html;
+
+    // Image onerror
+    var imgs=document.querySelectorAll('.grid-card .thumb img');
+    for(var j=0;j<imgs.length;j++){
+        imgs[j].onerror=function(){
+            this.parentElement.innerHTML='<svg viewBox="0 0 44 44" fill="none" stroke="#aeaeb2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="36" height="28" rx="4"/><path d="M12 10V7a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v3"/><path d="M19 26l3 3 3-6" stroke-width="2"/></svg>';
+        };
+    }
+
+    // Click handlers
+    var cards=document.querySelectorAll('.grid-card');
+    for(var j=0;j<cards.length;j++){
+        cards[j].addEventListener('click',function(){
+            var idx=parseInt(this.getAttribute('data-idx'));
+            if(isNaN(idx)||!allProducts[idx])return;
+            loadProduct(allProducts[idx].url);
+        });
+    }
+
+    // Re-apply search filter
+    filterGrid($('searchInput').value);
+
+    // Update count
+    var visible=document.querySelectorAll('.grid-card:not(.hidden)').length;
+    $('resultCount').textContent=visible+' product'+(visible!==1?'s':'')+' shown';
+}
+
+function filterGrid(query){
+    var q=query.toLowerCase().trim();
+    var cards=document.querySelectorAll('.grid-card');
+    var visible=0;
+    for(var i=0;i<cards.length;i++){
+        var name=cards[i].getAttribute('data-search')||'';
+        var match=!q||name.indexOf(q)!==-1;
+        cards[i].classList.toggle('hidden',!match);
+        if(match)visible++;
+    }
+    $('resultCount').textContent=visible+' product'+(visible!==1?'s':'')+' shown';
+    $('clearSearch').style.display=q?'inline':'none';
+}
+
+$('searchInput').addEventListener('input',function(){filterGrid(this.value)});
+$('clearSearch').addEventListener('click',function(){
+    $('searchInput').value='';
+    $('searchInput').focus();
+    filterGrid('');
+});
+
+$('shuffleBtn').addEventListener('click',function(){
+    shuffleArray(allProducts);
+    renderGridCards();
+    var btn=$('shuffleBtn');
+    btn.classList.add('spin');
+    setTimeout(function(){btn.classList.remove('spin');},400);
+});
+
+// ── Load grid ──
+async function loadGrid(){
+    var html='<div class="skel-grid">';
+    for(var k=0;k<20;k++){
+        html+='<div class="skel-card"><div class="skel-thumb"></div><div class="skel-line"></div><div class="skel-line s2"></div></div>';
+    }
+    html+='</div>';
+    $('gridContainer').innerHTML=html;
+    $('resultCount').textContent='Loading...';
+
+    var r=await fetch('/api/products/summary?limit=20');
+    var data=await r.json();
+    allProducts=data.products||[];
+
+    allProducts=data.products||[];
+    shuffleArray(allProducts);
+    renderGridCards();
+
+    var h;
+
+    var h;
+    try{h=await fetch('/api/health').then(function(r){return r.json()})}catch(e){h={}}
+    $('healthText').textContent=h.status==='ok'?h.reviews+' reviews':'disconnected';
+    $('healthDot').className='dot'+(h.status==='ok'?'':' stale');
+
+    if(allProducts.length>0)loadProduct(allProducts[0].url,true);
+}
+
+// ── Load product ──
+async function loadProduct(url,silent){
+    if(!silent)modalOpen();
+    try{
+        var r=await fetch('/api/product?url='+encodeURIComponent(url));
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        var p=await r.json();
+        render(p);
+    }catch(e){console.error(e)}
+}
+
+function render(p){
+    cur=p;
+    var s=p.sentiment;
+
+    $('mPname').textContent=p.name;
+    $('mPbrand').textContent=p.brand;
+    $('mPrating').innerHTML=mRenderStars(p.rating);
+    $('mPrevText').textContent=p.reviewCount.toLocaleString()+' reviews';
+
+    if(p.imageUrl){
+        $('mPimg').innerHTML='<img src="'+p.imageUrl+'" alt="" loading="lazy">';
+        var ig=$('mPimg').querySelector('img');
+        if(ig){
+            ig.onerror=function(){
+                this.parentElement.innerHTML='<div class="fb"><svg viewBox="0 0 44 44" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="36" height="28" rx="4"/><path d="M12 10V7a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v3"/><path d="M19 26l3 3 3-6" stroke-width="2"/></svg></div>';
+            };
+        }
+    }else{
+        $('mPimg').innerHTML='<div class="fb"><svg viewBox="0 0 44 44" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="36" height="28" rx="4"/><path d="M12 10V7a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v3"/><path d="M19 26l3 3 3-6" stroke-width="2"/></svg></div>';
+    }
+
+    $('mChTot').textContent=p.totalReviews;
+    $('mChPos').textContent=s.positive+'%';
+    $('mChNeu').textContent=s.neutral+'%';
+    $('mChNeg').textContent=s.negative+'%';
+
+    anim($('mBPos'),s.positive);
+    anim($('mBNeu'),s.neutral);
+    anim($('mBNeg'),s.negative);
+    $('mPPos').textContent=s.positive+'%';
+    $('mPNeu').textContent=s.neutral+'%';
+    $('mPNeg').textContent=s.negative+'%';
+
+    $('mTrendPos').innerHTML='<span class="m-au"></span>'+p.positiveCount;
+    $('mTrendNeu').innerHTML='<span class="m-af"></span>'+p.neutralCount;
+    $('mTrendNeg').innerHTML='<span class="m-ad"></span>'+p.negativeCount;
+
+    if(p.topIssues&&p.topIssues.length>0){
+        var il='';
+        for(var i=0;i<p.topIssues.length;i++){
+            il+='<li><span class="rk">'+(i+1)+'</span>'+p.topIssues[i]+'</li>';
+        }
+        $('mIssList').innerHTML=il;
+    }else{
+        $('mIssList').innerHTML='<li class="em">No significant issues</li>';
+    }
+
+    mRenderKeywords(p);
+    $('mSumTxt').textContent=p.aiSummary.en;
+
+    $('mDPos').textContent=p.positiveCount;
+    $('mDNeu').textContent=p.neutralCount;
+    $('mDNeg').textContent=p.negativeCount;
+    $('mDTot').textContent=p.totalReviews;
+    $('mDRat').textContent=p.rating.toFixed(1)+' / 5';
+    $('mDRev').textContent=p.reviewCount.toLocaleString();
+    var scr=s.positive-s.negative;
+    $('mDScr').textContent=(scr>0?'+':'')+scr;
+
+    window.__samples=p.samples;
+    mRenderSamples(lang);
+    $('mPanel').classList.remove('open');
+    mApplyLang(lang);
+    if(lang==='az'){
+        $('mTogBtn').classList.add('az');
+        $('mTogLbl').textContent='Show in English';
+    }else{
+        $('mTogBtn').classList.remove('az');
+        $('mTogLbl').textContent='Show Full Analysis';
+    }
+}
+
+function mRenderStars(rating){
+    var full=Math.round(rating);
+    var svg='<svg viewBox="0 0 12 12"><path d="M6 .5l1.5 4.5H12L7.5 7.5l1.5 4.5L6 9 .5 12 2 7.5.5 4.5h4.5L6 .5z"/></svg>';
+    var s='';
+    for(var i=0;i<5;i++){
+        s+='<span class="'+(i<full?'fl':'em')+'">'+svg+'</span>';
+    }
+    return s+' <span style="font-variant-numeric:tabular-nums">'+rating.toFixed(1)+'</span>';
+}
+
+function mRenderKeywords(p){
+    var w=[];
+    if(p.samples.positive&&p.samples.positive.length) w.push({t:'positive',c:'p'});
+    if(p.samples.negative&&p.samples.negative.length) w.push({t:'complaints',c:'ng'});
+    if(p.topIssues&&p.topIssues.length){
+        var iss=p.topIssues[0].split('/')[1];
+        if(iss)w.push({t:iss.trim(),c:'ng'});
+    }
+    if(w.length<2){w.push({t:'product',c:'n'});w.push({t:'delivery',c:'ng'});}
+    w.push({t:'quality',c:'p'});
+    var h='';
+    for(var i=0;i<Math.min(w.length,6);i++){
+        h+='<span class="m-kwt"><span class="sd '+w[i].c+'"></span>'+esc(w[i].t)+'</span>';
+    }
+    $('mKwList').innerHTML=h;
+}
+
+function mRenderSamples(l){
+    var samples=window.__samples||{};
+    var b=BADGE[l]||BADGE.en;
+    var idx=0,h='';
+    function add(txt,cls,label){
+        if(!txt)return;
+        var init=INITIALS[idx++%INITIALS.length];
+        h+='<div class="m-ri"><div class="m-ra">'+init+'</div><div class="m-rb"><div class="rt">'+esc(txt)+'</div></div><span class="m-rp '+cls+'">'+label+'</span></div>';
+    }
+    var pos=samples.positive||[];
+    for(var i=0;i<Math.min(pos.length,2);i++){add(pos[i],'p',b.p);}
+    var neu=samples.neutral||[];
+    for(var i=0;i<Math.min(neu.length,1);i++){add(neu[i],'nt',b.nt);}
+    var neg=samples.negative||[];
+    for(var i=0;i<Math.min(neg.length,2);i++){add(neg[i],'ng',b.ng);}
+    $('mSamples').innerHTML=h||'<div class="m-ri"><div class="m-rb"><div class="rt" style="color:var(--text-muted)">No sample reviews.</div></div></div>';
+}
+
+function anim(el,pct){
+    el.style.width='0%';
+    requestAnimationFrame(function(){
+        requestAnimationFrame(function(){el.style.width=pct+'%';});
+    });
+}
+
+function esc(t){
+    var d=document.createElement('div');
+    d.textContent=t;
+    return d.innerHTML;
+}
+
+function escAttr(t){
+    return t.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function mApplyLang(l){
+    var els=document.querySelectorAll('#modal [data-en],[data-az]');
+    for(var i=0;i<els.length;i++){
+        var el=els[i];
+        var v=l==='az'?(el.getAttribute('data-az')||el.getAttribute('data-en')):el.getAttribute('data-en');
+        if(v!==null)el.textContent=v;
+    }
+    if(cur)$('mSumTxt').textContent=cur.aiSummary[l];
+    mRenderSamples(l);
+    $('mTogLbl').textContent=l==='az'?'Show in English':'Show Full Analysis';
+    if(l==='az'){$('mTogBtn').classList.add('az');}else{$('mTogBtn').classList.remove('az');}
+}
+
+$('mTogBtn').addEventListener('click',function(){
+    if(!cur)return;
+    if(!$('mPanel').classList.contains('open'))$('mPanel').classList.add('open');
+    lang=lang==='en'?'az':'en';
+    mApplyLang(lang);
+    $('mPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+
+loadGrid();
+</script>
+</body>
+</html>
