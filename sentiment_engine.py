@@ -201,9 +201,11 @@ def get_products() -> list[dict]:
     return result
 
 
-def get_products_with_sentiment(limit: int = 20) -> list[dict]:
-    """Return top N products with basic sentiment breakdown pre-computed."""
-    products = get_products()[:limit]
+def get_products_with_sentiment(limit: int | None = 200) -> list[dict]:
+    """Return top N products with basic sentiment breakdown. limit=None for all."""
+    products = get_products()
+    if limit is not None:
+        products = products[:limit]
     total_needed = len(products)
     if total_needed == 0:
         return []

@@ -43,8 +43,10 @@ def api_products():
 
 @app.route("/api/products/summary")
 def api_products_summary():
-    """Return top N products with mini sentiment data (for grid view)."""
-    limit = request.args.get("limit", 20, type=int)
+    """Return products with mini sentiment data. Use ?limit=0 for all."""
+    limit = request.args.get("limit", 200, type=int)  # default: all
+    if limit < 1:
+        limit = None
     products = get_products_with_sentiment(limit=limit)
     return jsonify({
         "products": products,
@@ -52,7 +54,18 @@ def api_products_summary():
     })
 
 
-@app.route("/api/product")
+@app.route("/api/brands")
+def api_brands():
+    """Return distinct brands with product/review counts."""
+    products = get_products()
+    brand_map: dict[str, dict] = {}
+    for p in products:
+        b = p["brand"] or "Unknown"
+        if b not in brand_map:
+            brand_map[b] = {"brand": b, "productCount": 0}
+        brand_map[b]["productCount"] += 1
+    brands = sorted(brand_map.values(), key=lambda x: -x["productCount"])
+    return jsonify({"brands": brands, "total": len(brands)})
 def api_product():
     """Full sentiment analysis for one product (by ?url=...)."""
     url = request.args.get("url", "")

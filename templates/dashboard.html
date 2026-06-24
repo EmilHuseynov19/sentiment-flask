@@ -51,6 +51,20 @@
         .hd .dot{width:6px;height:6px;border-radius:50%;background:var(--positive);display:inline-block;flex-shrink:0}
         .hd .dot.stale{background:var(--neutral)}
 
+        /* ── Brand selector ── */
+        .brand-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+        .brand-row label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);white-space:nowrap}
+        .brand-row select{
+            flex:1;min-width:160px;padding:8px 12px;font-size:13px;font-family:var(--font);
+            border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);
+            color:var(--text);cursor:pointer;outline:none;
+            -webkit-appearance:none;appearance:none;
+            background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236e6e73' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;
+        }
+        .brand-row select:focus{border-color:var(--text)}
+        .brand-row .brand-count{font-size:12px;color:var(--text-muted);white-space:nowrap}
+
         /* ── Results count ── */
         .results-meta{font-size:13px;color:var(--text-sub);display:flex;justify-content:space-between;align-items:center}
         .results-meta .clear-btn{
@@ -247,6 +261,15 @@
         </div>
     </div>
 
+    <!-- ═══ Brand Filter ═══ -->
+    <div class="brand-row">
+        <label>Brand</label>
+        <select id="brandSelect">
+            <option value="__all__">All Brands</option>
+        </select>
+        <span class="brand-count" id="brandCount"></span>
+    </div>
+
     <!-- ═══ Results meta ═══ -->
     <div class="results-meta">
         <span id="resultCount"></span>
@@ -369,7 +392,7 @@
 <script>
 var BADGE={en:{p:'Positive',nt:'Neutral',ng:'Negative'},az:{p:'Müsbət',nt:'Neytral',ng:'Mənfi'}};
 var INITIALS=['AM','RK','LH','SY','MT','AB','CK','DN','ER','FP'];
-var allProducts=[],cur=null,lang='en';
+var allProducts=[],cur=null,lang='en',currentBrand='__all__',GRID_SIZE=20;
 
 function $(id){return document.getElementById(id)}
 
@@ -393,10 +416,29 @@ function shuffleArray(arr){
     return arr;
 }
 
-function renderGridCards(){
-    var html='<div class="grid">';
+function getFilteredProducts(){
+    var filtered=[];
     for(var i=0;i<allProducts.length;i++){
         var p=allProducts[i];
+        if(currentBrand==='__all__' || p.brand===currentBrand){
+            filtered.push(p);
+        }
+    }
+    return filtered;
+}
+
+function pickRandom(arr, n){
+    var copy=arr.slice();
+    shuffleArray(copy);
+    return copy.slice(0,Math.min(n,copy.length));
+}
+
+function renderGridCards(){
+    var filtered=getFilteredProducts();
+    var products=pickRandom(filtered,GRID_SIZE);
+    var html='<div class="grid">';
+    for(var i=0;i<products.length;i++){
+        var p=products[i];
         var s=p.sentiment||{positive:50,neutral:30,negative:20};
         var imgHtml;
         if(p.imageUrl){
@@ -429,14 +471,14 @@ function renderGridCards(){
         };
     }
 
-    // Click handlers
+    // Click handlers (use products array in closure)
     var cards=document.querySelectorAll('.grid-card');
     for(var j=0;j<cards.length;j++){
-        cards[j].addEventListener('click',function(){
-            var idx=parseInt(this.getAttribute('data-idx'));
-            if(isNaN(idx)||!allProducts[idx])return;
-            loadProduct(allProducts[idx].url);
-        });
+        cards[j].addEventListener('click',(function(prod){
+            return function(){
+                loadProduct(prod.url);
+            };
+        })(products[j]));
     }
 
     // Re-apply search filter
@@ -445,6 +487,7 @@ function renderGridCards(){
     // Update count
     var visible=document.querySelectorAll('.grid-card:not(.hidden)').length;
     $('resultCount').textContent=visible+' product'+(visible!==1?'s':'')+' shown';
+    $('brandCount').textContent=getFilteredProducts().length+' products';
 }
 
 function filterGrid(query){
@@ -469,11 +512,15 @@ $('clearSearch').addEventListener('click',function(){
 });
 
 $('shuffleBtn').addEventListener('click',function(){
-    shuffleArray(allProducts);
     renderGridCards();
     var btn=$('shuffleBtn');
     btn.classList.add('spin');
     setTimeout(function(){btn.classList.remove('spin');},400);
+});
+
+$('brandSelect').addEventListener('change',function(){
+    currentBrand=this.value;
+    renderGridCards();
 });
 
 // ── Load grid ──
@@ -486,15 +533,25 @@ async function loadGrid(){
     $('gridContainer').innerHTML=html;
     $('resultCount').textContent='Loading...';
 
-    var r=await fetch('/api/products/summary?limit=20');
+    var r=await fetch('/api/products/summary?limit=200');
     var data=await r.json();
     allProducts=data.products||[];
 
-    allProducts=data.products||[];
-    shuffleArray(allProducts);
-    renderGridCards();
+    // Populate brand dropdown
+    var seen={};
+    var sel=$('brandSelect');
+    sel.innerHTML='<option value="__all__">All Brands</option>';
+    for(var i=0;i<allProducts.length;i++){
+        var b=allProducts[i].brand||'Unknown';
+        if(!seen[b]){seen[b]=true;
+            var o=document.createElement('option');
+            o.value=b;o.textContent=b;
+            sel.appendChild(o);
+        }
+    }
+    $('brandCount').textContent=allProducts.length+' total';
 
-    var h;
+    renderGridCards();
 
     var h;
     try{h=await fetch('/api/health').then(function(r){return r.json()})}catch(e){h={}}
