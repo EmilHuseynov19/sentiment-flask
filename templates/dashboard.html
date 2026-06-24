@@ -81,6 +81,19 @@
         .results-meta .shuffle-btn svg{width:14px;height:14px;transition:transform .4s ease}
         .results-meta .shuffle-btn.spin svg{transform:rotate(360deg)}
 
+        /* ── Pagination ── */
+        .pagination{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:20px;flex-wrap:wrap}
+        .pagination .page-btn{
+            min-width:32px;height:32px;border:1px solid var(--border);border-radius:var(--radius-sm);
+            background:var(--bg);font-family:var(--font);font-size:13px;color:var(--text-sub);
+            cursor:pointer;display:flex;align-items:center;justify-content:center;
+            transition:all .15s;padding:0 8px;
+        }
+        .pagination .page-btn:hover{border-color:var(--text);color:var(--text)}
+        .pagination .page-btn.active{border-color:var(--text);color:var(--text);background:var(--surface)}
+        .pagination .page-btn:disabled{opacity:.3;cursor:default;pointer-events:none}
+        .pagination .page-gap{padding:0 4px;color:var(--text-muted);font-size:13px}
+
         /* ── Grid ── */
         .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
         .grid-card{
@@ -284,6 +297,7 @@
 
     <!-- ═══ Product Grid ═══ -->
     <div id="gridContainer"></div>
+    <div class="pagination" id="pagination"></div>
 
     <!-- ═══ Modal ═══ -->
     <div class="modal-overlay" id="modal">
@@ -392,7 +406,7 @@
 <script>
 var BADGE={en:{p:'Positive',nt:'Neutral',ng:'Negative'},az:{p:'Müsbət',nt:'Neytral',ng:'Mənfi'}};
 var INITIALS=['AM','RK','LH','SY','MT','AB','CK','DN','ER','FP'];
-var allProducts=[],cur=null,lang='en',currentBrand='__all__',GRID_SIZE=20;
+var allProducts=[],cur=null,lang='en',currentBrand='__all__',PAGE_SIZE=20,currentPage=1;
 
 function $(id){return document.getElementById(id)}
 
@@ -427,18 +441,36 @@ function getFilteredProducts(){
     return filtered;
 }
 
-function pickRandom(arr, n){
-    var copy=arr.slice();
-    shuffleArray(copy);
-    return copy.slice(0,Math.min(n,copy.length));
+function renderPagination(total, page, pageSize){
+    var totalPages=Math.ceil(total/pageSize);
+    if(totalPages<=1){$('pagination').innerHTML='';return;}
+    var h='';
+    // Prev
+    h+='<button class="page-btn" data-page="'+(page-1)+'"'+(page<=1?' disabled':'')+'>&lsaquo; Prev</button>';
+    // Page numbers with gaps
+    var start=Math.max(1,page-2);
+    var end=Math.min(totalPages,page+2);
+    if(start>1){h+='<button class="page-btn" data-page="1">1</button>';if(start>2)h+='<span class="page-gap">&hellip;</span>';}
+    for(var p=start;p<=end;p++){
+        h+='<button class="page-btn'+(p===page?' active':'')+'" data-page="'+p+'">'+p+'</button>';
+    }
+    if(end<totalPages){if(end<totalPages-1)h+='<span class="page-gap">&hellip;</span>';h+='<button class="page-btn" data-page="'+totalPages+'">'+totalPages+'</button>';}
+    // Next
+    h+='<button class="page-btn" data-page="'+(page+1)+'"'+(page>=totalPages?' disabled':'')+'>Next &rsaquo;</button>';
+    $('pagination').innerHTML=h;
 }
 
 function renderGridCards(){
     var filtered=getFilteredProducts();
-    var products=pickRandom(filtered,GRID_SIZE);
+    var total=filtered.length;
+    var totalPages=Math.ceil(total/PAGE_SIZE);
+    if(currentPage>totalPages)currentPage=totalPages||1;
+    var start=(currentPage-1)*PAGE_SIZE;
+    var pageProducts=filtered.slice(start,start+PAGE_SIZE);
+
     var html='<div class="grid">';
-    for(var i=0;i<products.length;i++){
-        var p=products[i];
+    for(var i=0;i<pageProducts.length;i++){
+        var p=pageProducts[i];
         var s=p.sentiment||{positive:50,neutral:30,negative:20};
         var imgHtml;
         if(p.imageUrl){
@@ -452,7 +484,7 @@ function renderGridCards(){
         var ngw=pct>0?100-pw-nw:0;
         var searchStr=(p.brand+' '+p.name).toLowerCase();
 
-        html+='<div class="grid-card" data-idx="'+i+'" data-search="'+escAttr(searchStr)+'">';
+        html+='<div class="grid-card" data-url="'+escAttr(p.url)+'" data-search="'+escAttr(searchStr)+'">';
         html+='<div class="thumb">'+imgHtml+'</div>';
         html+='<span class="gbrand">'+esc(p.brand||'')+'</span>';
         html+='<span class="gname">'+esc(p.name||'')+'</span>';
@@ -471,15 +503,8 @@ function renderGridCards(){
         };
     }
 
-    // Click handlers (use products array in closure)
-    var cards=document.querySelectorAll('.grid-card');
-    for(var j=0;j<cards.length;j++){
-        cards[j].addEventListener('click',(function(prod){
-            return function(){
-                loadProduct(prod.url);
-            };
-        })(products[j]));
-    }
+    // Pagination
+    renderPagination(total,currentPage,PAGE_SIZE);
 
     // Re-apply search filter
     filterGrid($('searchInput').value);
@@ -487,8 +512,26 @@ function renderGridCards(){
     // Update count
     var visible=document.querySelectorAll('.grid-card:not(.hidden)').length;
     $('resultCount').textContent=visible+' product'+(visible!==1?'s':'')+' shown';
-    $('brandCount').textContent=getFilteredProducts().length+' products';
+    $('brandCount').textContent=total+' products';
 }
+
+// Event delegation: click on grid card or page button
+$('gridContainer').addEventListener('click',function(e){
+    var card=e.target.closest('.grid-card');
+    if(card){
+        var url=card.getAttribute('data-url');
+        if(url)loadProduct(url);
+        return;
+    }
+});
+
+$('pagination').addEventListener('click',function(e){
+    var btn=e.target.closest('.page-btn');
+    if(btn&&!btn.disabled){
+        var page=parseInt(btn.getAttribute('data-page'));
+        if(page>0){currentPage=page;renderGridCards();}
+    }
+});
 
 function filterGrid(query){
     var q=query.toLowerCase().trim();
@@ -512,6 +555,8 @@ $('clearSearch').addEventListener('click',function(){
 });
 
 $('shuffleBtn').addEventListener('click',function(){
+    shuffleArray(allProducts);
+    currentPage=1;
     renderGridCards();
     var btn=$('shuffleBtn');
     btn.classList.add('spin');

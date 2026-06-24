@@ -66,6 +66,8 @@ def api_brands():
         brand_map[b]["productCount"] += 1
     brands = sorted(brand_map.values(), key=lambda x: -x["productCount"])
     return jsonify({"brands": brands, "total": len(brands)})
+
+@app.route("/api/product")
 def api_product():
     """Full sentiment analysis for one product (by ?url=...)."""
     url = request.args.get("url", "")
